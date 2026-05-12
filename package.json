@@ -1,0 +1,35 @@
+{
+  "name": "claude-cost",
+  "version": "0.1.0",
+  "description": "CLI tool and Claude Code hooks for estimating and tracking Claude API costs",
+  "type": "module",
+  "bin": {
+    "claude-cost": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "node esbuild.config.js",
+    "dev": "node esbuild.config.js --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "claude",
+    "anthropic",
+    "cost",
+    "tokens",
+    "estimator",
+    "cli"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.7.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
