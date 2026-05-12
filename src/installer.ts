@@ -45,18 +45,6 @@ function buildHookConfig(): Record<string, HookMatcher[]> {
         ],
       },
     ],
-    SessionEnd: [
-      {
-        matcher: "",
-        hooks: [
-          {
-            type: "command",
-            command: `${bin} hook-session-end`,
-            timeout: 10,
-          },
-        ],
-      },
-    ],
   };
 }
 

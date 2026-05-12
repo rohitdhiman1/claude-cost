@@ -1,10 +1,9 @@
 import * as fs from "node:fs";
 import { resolveModel, MODELS, DEFAULT_MODEL } from "./models.js";
-import { estimate, estimateTokens, estimateCost } from "./estimator.js";
-import { estimateViaApi } from "./api.js";
+import { estimateCost } from "./estimator.js";
+import { estimateViaApi, countTokensViaApi } from "./api.js";
 import { reportAll, reportToday, reportSession } from "./report.js";
 import { handleStop } from "./hooks/stop.js";
-import { handleSessionEnd } from "./hooks/session-end.js";
 import { install, uninstall } from "./installer.js";
 import {
   c,
@@ -41,19 +40,24 @@ function readHookInput(): Promise<string> {
   });
 }
 
-function printEstimate(result: EstimateResult, outputSpecified: boolean): void {
-  const methodLabel =
-    result.method === "api"
-      ? `${c.green}API (exact)${c.reset}`
-      : `${c.yellow}Local (approximate)${c.reset}`;
+function requireApiKey(): string {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.error(
+      `${c.red}ANTHROPIC_API_KEY environment variable is required.${c.reset}`
+    );
+    process.exit(1);
+  }
+  return apiKey;
+}
 
+function printEstimate(result: EstimateResult, outputSpecified: boolean): void {
   const outputLabel = outputSpecified ? "(specified)" : "(estimated)";
 
   const lines = [
     `${header("Cost Estimate")}`,
     "",
     `${dim("Model:")}         ${bold(result.model.name)} ${dim(`(${result.model.id})`)}`,
-    `${dim("Method:")}        ${methodLabel}`,
     `${dim("Input tokens:")}  ${bold(result.inputTokens.toLocaleString())}`,
     `${dim("Output tokens:")} ${bold(result.outputTokens.toLocaleString())} ${dim(outputLabel)}`,
     "",
@@ -68,21 +72,26 @@ function printEstimate(result: EstimateResult, outputSpecified: boolean): void {
   console.log("");
 }
 
-function printCompare(text: string, explicitOutput?: number): void {
-  const tokens = estimateTokens(text);
-  const outputTokens = explicitOutput ?? Math.ceil(tokens * 0.5);
+async function printCompare(
+  text: string,
+  apiKey: string,
+  explicitOutput?: number
+): Promise<void> {
+  const model = resolveModel(DEFAULT_MODEL);
+  const inputTokens = await countTokensViaApi(text, model, apiKey);
+  const outputTokens = explicitOutput ?? Math.ceil(inputTokens * 0.5);
   const outputLabel = explicitOutput ? "specified" : "estimated";
 
   console.log("");
   console.log(
-    `  ${header("Model Comparison")}  ${dim(`${tokens.toLocaleString()} input + ${outputTokens.toLocaleString()} output tokens (${outputLabel})`)}`
+    `  ${header("Model Comparison")}  ${dim(`${inputTokens.toLocaleString()} input + ${outputTokens.toLocaleString()} output tokens (${outputLabel})`)}`
   );
   console.log("");
 
-  const rows = Object.values(MODELS).map((model) => {
-    const costs = estimateCost(tokens, outputTokens, model);
+  const rows = Object.values(MODELS).map((m) => {
+    const costs = estimateCost(inputTokens, outputTokens, m);
     return [
-      `${bold(model.name)}`,
+      `${bold(m.name)}`,
       formatCost(costs.inputCost),
       formatCost(costs.outputCost),
       bold(formatCost(costs.totalCost)),
@@ -100,32 +109,30 @@ function printCompare(text: string, explicitOutput?: number): void {
 }
 
 function printUsage(): void {
-  const title = `${c.bold}${c.cyan}claude-cost${c.reset} ${dim("— Estimate and track Claude API costs")}`;
+  const title = `${c.bold}${c.cyan}claude-cost${c.reset} ${dim("— Estimate Claude API costs")}`;
   const help = `
 ${title}
 
 ${header("Usage:")}
   ${bold("claude-cost estimate")} <file|text>    Estimate tokens and cost for input
   ${bold("claude-cost estimate")} --compare      Compare cost across all models
-  ${bold("claude-cost estimate")} --exact        Use API for exact token count
   ${bold("claude-cost estimate")} -              Read from stdin
   ${bold("claude-cost report")}                  Show all session cost data
   ${bold("claude-cost report")} --today          Show today's cost data
   ${bold("claude-cost report")} --session <id>   Show specific session data
-  ${bold("claude-cost install")}                 Install Claude Code hooks
-  ${bold("claude-cost uninstall")}               Remove Claude Code hooks
+  ${bold("claude-cost install")}                 Install Claude Code hook (silent cost logging)
+  ${bold("claude-cost uninstall")}               Remove Claude Code hook
 
 ${header("Options:")}
   ${bold("-m, --model")} <model>    Model to use ${dim("(default: sonnet)")}
                          Aliases: opus, sonnet, haiku
   ${bold("-o, --output-tokens")} <n> Expected output tokens ${dim("(default: 50% of input)")}
-  ${bold("--exact")}               Use Anthropic API for exact token count
   ${bold("--compare")}             Compare cost across all models
   ${bold("-h, --help")}            Show this help
   ${bold("-v, --version")}         Show version
 
 ${header("Environment:")}
-  ${bold("ANTHROPIC_API_KEY")}     Required for --exact mode
+  ${bold("ANTHROPIC_API_KEY")}     Required (used for exact token counting)
 `;
   console.log(help);
 }
@@ -145,8 +152,6 @@ function parseArgs(argv: string[]): {
       flags.model = argv[++i] ?? "";
     } else if (arg === "--output-tokens" || arg === "-o") {
       flags.outputTokens = argv[++i] ?? "";
-    } else if (arg === "--exact") {
-      flags.exact = true;
     } else if (arg === "--compare") {
       flags.compare = true;
     } else if (arg === "--today") {
@@ -209,6 +214,7 @@ async function main(): Promise<void> {
   switch (command) {
     case "estimate": {
       const text = await getText(args);
+      const apiKey = requireApiKey();
       const modelId = (flags.model as string) ?? DEFAULT_MODEL;
       const model = resolveModel(modelId);
       const explicitOutput = flags.outputTokens
@@ -222,44 +228,12 @@ async function main(): Promise<void> {
         process.exit(1);
       }
 
-      const outputRatio = explicitOutput ? undefined : 0.5;
-
       if (flags.compare) {
-        printCompare(text, explicitOutput);
+        await printCompare(text, apiKey, explicitOutput);
         return;
       }
 
-      if (flags.exact) {
-        const apiKey = process.env.ANTHROPIC_API_KEY;
-        if (!apiKey) {
-          console.error(
-            `${c.red}ANTHROPIC_API_KEY environment variable is required for --exact mode.${c.reset}`
-          );
-          process.exit(1);
-        }
-        const result = await estimateViaApi(
-          text,
-          model,
-          apiKey,
-          outputRatio
-        );
-        if (explicitOutput !== undefined) {
-          result.outputTokens = explicitOutput;
-          const costs = estimateCost(result.inputTokens, explicitOutput, model);
-          result.outputCost = costs.outputCost;
-          result.totalCost = costs.totalCost;
-        }
-        printEstimate(result, explicitOutput !== undefined);
-        return;
-      }
-
-      const result = estimate(text, model, outputRatio);
-      if (explicitOutput !== undefined) {
-        result.outputTokens = explicitOutput;
-        const costs = estimateCost(result.inputTokens, explicitOutput, model);
-        result.outputCost = costs.outputCost;
-        result.totalCost = costs.totalCost;
-      }
+      const result = await estimateViaApi(text, model, apiKey, explicitOutput);
       printEstimate(result, explicitOutput !== undefined);
       return;
     }
@@ -292,18 +266,6 @@ async function main(): Promise<void> {
       } catch (err) {
         process.stderr.write(
           `${c.red}[claude-cost] hook-stop error: ${err}${c.reset}\n`
-        );
-      }
-      return;
-    }
-
-    case "hook-session-end": {
-      const input = await readHookInput();
-      try {
-        handleSessionEnd(JSON.parse(input));
-      } catch (err) {
-        process.stderr.write(
-          `${c.red}[claude-cost] hook-session-end error: ${err}${c.reset}\n`
         );
       }
       return;

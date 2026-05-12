@@ -37,16 +37,15 @@ export async function estimateViaApi(
   text: string,
   model: ModelPricing,
   apiKey: string,
-  outputRatio = 0.5
+  outputTokens?: number
 ): Promise<EstimateResult> {
   const inputTokens = await countTokensViaApi(text, model, apiKey);
-  const outputTokens = Math.ceil(inputTokens * outputRatio);
-  const costs = estimateCost(inputTokens, outputTokens, model);
+  const out = outputTokens ?? Math.ceil(inputTokens * 0.5);
+  const costs = estimateCost(inputTokens, out, model);
   return {
     inputTokens,
-    outputTokens,
+    outputTokens: out,
     model,
     ...costs,
-    method: "api",
   };
 }

@@ -129,3 +129,4 @@ export function sparkline(values: number[]): string {
     })
     .join("");
 }
+
