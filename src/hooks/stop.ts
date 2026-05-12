@@ -1,8 +1,7 @@
 import * as fs from "node:fs";
-import { MODELS } from "../models.js";
+import { inferModelFromId } from "../models.js";
 import { estimateCostWithCache } from "../estimator.js";
 import { appendTurn } from "../storage.js";
-import { costBadge, dim } from "../format.js";
 
 interface HookInput {
   session_id: string;
@@ -16,10 +15,16 @@ interface TranscriptUsage {
   cache_read_input_tokens?: number;
 }
 
+interface TranscriptMessage {
+  model?: string;
+  usage?: TranscriptUsage;
+}
+
 interface TranscriptEntry {
   type?: string;
   model?: string;
   usage?: TranscriptUsage;
+  message?: TranscriptMessage;
 }
 
 function extractLastUsage(transcriptPath: string): {
@@ -36,11 +41,15 @@ function extractLastUsage(transcriptPath: string): {
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
       const entry = JSON.parse(lines[i]) as TranscriptEntry;
-      if (entry.type === "assistant" && entry.usage) {
-        return {
-          usage: entry.usage,
-          model: entry.model ?? "claude-sonnet-4-6",
-        };
+      if (entry.type === "assistant") {
+        const usage = entry.message?.usage ?? entry.usage;
+        const model = entry.message?.model ?? entry.model;
+        if (usage) {
+          return {
+            usage,
+            model: model ?? "claude-sonnet-4-6",
+          };
+        }
       }
     } catch {
       continue;
@@ -54,7 +63,7 @@ export function handleStop(input: HookInput): void {
   if (!result) return;
 
   const { usage, model: modelId } = result;
-  const modelPricing = MODELS[modelId];
+  const modelPricing = inferModelFromId(modelId);
   if (!modelPricing) return;
 
   const inputTokens = usage.input_tokens;
@@ -84,9 +93,4 @@ export function handleStop(input: HookInput): void {
     cacheReadCost: costs.cacheReadCost,
     totalCost: costs.totalCost,
   });
-
-  const tokensTotal = inputTokens + outputTokens;
-  process.stderr.write(
-    `${costBadge(costs.totalCost)} ${dim(`${tokensTotal.toLocaleString()} tokens`)}\n`
-  );
 }

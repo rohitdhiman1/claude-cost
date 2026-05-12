@@ -13,11 +13,6 @@ export const c = {
   yellow: esc("33"),
   red: esc("31"),
   cyan: esc("36"),
-  magenta: esc("35"),
-  white: esc("37"),
-  bgGreen: esc("42"),
-  bgYellow: esc("43"),
-  bgRed: esc("41"),
 };
 
 export function colorCost(cost: number, formatted: string): string {
@@ -35,14 +30,6 @@ export function formatCostPlain(cost: number): string {
   return cost < 0.01 ? `$${cost.toFixed(4)}` : `$${cost.toFixed(2)}`;
 }
 
-export function costBadge(cost: number): string {
-  const raw = formatCostPlain(cost);
-  if (!isColorSupported) return `[ ${raw} ]`;
-  if (cost < 0.01) return `${c.bgGreen}\x1b[30m ${raw} ${c.reset}`;
-  if (cost < 0.1) return `${c.bgYellow}\x1b[30m ${raw} ${c.reset}`;
-  return `${c.bgRed}\x1b[97m ${raw} ${c.reset}`;
-}
-
 export function header(text: string): string {
   return `${c.bold}${c.cyan}${text}${c.reset}`;
 }
@@ -53,10 +40,6 @@ export function dim(text: string): string {
 
 export function bold(text: string): string {
   return `${c.bold}${text}${c.reset}`;
-}
-
-export function label(text: string): string {
-  return `${c.dim}${text}${c.reset}`;
 }
 
 export const box = {
