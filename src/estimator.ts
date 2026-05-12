@@ -1,28 +1,5 @@
 import { type ModelPricing } from "./models.js";
 
-export interface EstimateResult {
-  inputTokens: number;
-  outputTokens: number;
-  model: ModelPricing;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
-}
-
-export function estimateCost(
-  inputTokens: number,
-  outputTokens: number,
-  model: ModelPricing
-): { inputCost: number; outputCost: number; totalCost: number } {
-  const inputCost = (inputTokens / 1_000_000) * model.inputPerMTok;
-  const outputCost = (outputTokens / 1_000_000) * model.outputPerMTok;
-  return {
-    inputCost,
-    outputCost,
-    totalCost: inputCost + outputCost,
-  };
-}
-
 export function estimateCostWithCache(
   inputTokens: number,
   outputTokens: number,

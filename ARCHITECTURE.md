@@ -5,105 +5,19 @@
 ```
 +------------------------------------------------------------------+
 |                        claude-cost CLI                            |
-|                         (cli.ts)                                 |
+|                          (cli.ts)                                |
 |                                                                  |
-|  Parses argv, routes to command handlers, reads text/stdin/file  |
-+-------+----------+-----------+-----------+-----------+-----------+
-        |          |           |           |           |
-        v          v           v           v           v
-   "estimate"   "report"   "install"  "uninstall"  "hook-stop"
-        |          |           |           |           |
-        v          v           v           v           v
-   +--------+  +--------+  +----------+  +----------+  +--------+
-   | api.ts |  |report.ts|  |installer |  |installer |  | hooks/ |
-   |        |  |         |  |  .ts     |  |  .ts     |  | stop.ts|
-   +--------+  +--------+  +----------+  +----------+  +--------+
-```
-
-## Data Flow: Estimate Command
-
-```
-User runs:  claude-cost estimate "Hello world" -m opus
-
-    +-------------------+
-    |  CLI (cli.ts)     |
-    |                   |
-    |  1. parseArgs()   |
-    |  2. getText()     |
-    |  3. resolveModel()|
-    +--------+----------+
-             |
-             |  text + model + apiKey
-             v
-    +-------------------+       HTTPS POST
-    |  api.ts           | --------------------> Anthropic API
-    |                   |                       /v1/messages/count_tokens
-    |  countTokensViaApi| <--------------------
-    |                   |       { input_tokens: 42 }
-    +--------+----------+
-             |
-             |  exact input token count
-             v
-    +-------------------+
-    |  estimator.ts     |
-    |                   |
-    |  estimateCost()   |  tokens * (price / 1M) = dollar cost
-    |                   |
-    +--------+----------+
-             |
-             |  EstimateResult { inputTokens, outputTokens,
-             |                   inputCost, outputCost, totalCost }
-             v
-    +-------------------+
-    |  format.ts        |
-    |                   |
-    |  drawBox()        |  Renders colored, boxed output
-    |  formatCost()     |
-    +--------+----------+
-             |
-             v
-         stdout
-```
-
-## Data Flow: Compare Command
-
-```
-User runs:  claude-cost estimate --compare "Hello world"
-
-    +-------------------+
-    |  CLI (cli.ts)     |
-    |                   |
-    |  printCompare()   |
-    +--------+----------+
-             |
-             |  text + DEFAULT_MODEL + apiKey
-             v
-    +-------------------+       HTTPS POST
-    |  api.ts           | --------------------> Anthropic API
-    |                   |                       /v1/messages/count_tokens
-    |  countTokensViaApi| <--------------------
-    +--------+----------+       { input_tokens }
-             |
-             |  token count (same across all models)
-             v
-    +-------------------+
-    |  estimator.ts     |  Loop over MODELS map:
-    |                   |
-    |  for each model:  |    Opus 4.5, 4.6, 4.7
-    |    estimateCost() |    Sonnet 4.5, 4.6
-    |                   |    Haiku 4.5
-    +--------+----------+
-             |
-             |  cost per model
-             v
-    +-------------------+
-    |  format.ts        |
-    |                   |
-    |  drawTable()      |  Side-by-side model comparison table
-    +--------+----------+
-             |
-             v
-         stdout
+|  Parses argv, routes to command handlers                         |
++----------+-----------+-----------+-------------------------------+
+           |           |           |           |
+           v           v           v           v
+       "report"    "install"  "uninstall"  "hook-stop"
+           |           |           |           |
+           v           v           v           v
+      +--------+  +----------+  +----------+  +--------+
+      |report  |  |installer |  |installer |  | hooks/ |
+      |  .ts   |  |  .ts     |  |  .ts     |  | stop.ts|
+      +--------+  +----------+  +----------+  +--------+
 ```
 
 ## Data Flow: Silent Hook Logging
@@ -208,13 +122,6 @@ User runs:  claude-cost report [--today] [--session <id>]
 ```
 User runs:  claude-cost install
 
-    +-------------------+
-    |  CLI (cli.ts)     |
-    |                   |
-    |  "install"        |
-    +--------+----------+
-             |
-             v
     +-------------------+         reads/writes
     |  installer.ts     | ---------------------> ~/.claude/settings.json
     |                   |
@@ -230,7 +137,7 @@ User runs:  claude-cost install
     |                   |        }]
     |                   |      }}
     +-------------------+
-    
+
 User runs:  claude-cost uninstall
 
     +-------------------+         reads/writes
@@ -245,37 +152,35 @@ User runs:  claude-cost uninstall
 
 ```
                          cli.ts
-                        /  |   \      \         \
-                       /   |    \      \         \
-                      v    v     v      v         v
-               api.ts  report  installer  hooks/   format.ts
-                 |      .ts      .ts     stop.ts      ^
-                 |       |                 |          /
-                 v       v                 v         /
-              estimator.ts            storage.ts   /
-                 |                        |       /
-                 v                        |      /
-              models.ts                   |     /
-                                          v    /
-                                   ~/.claude-cost/
-                                    sessions/*.jsonl
+                        /  |   \         \
+                       /   |    \         \
+                      v    v     v         v
+               report  installer  hooks/   format.ts
+                .ts      .ts     stop.ts      ^
+                 |                 |          /
+                 v                 v         /
+              storage.ts     estimator.ts  /
+                 |               |        /
+                 |               v       /
+                 |           models.ts  /
+                 |                     /
+                 v                    /
+          ~/.claude-cost/
+           sessions/*.jsonl
 ```
 
 ## File Responsibilities
 
 ```
 src/
-+-- cli.ts              Entry point. Arg parsing, command routing,
-|                       text input (stdin/file/string), output display.
++-- cli.ts              Entry point. Arg parsing, command routing.
+|                       Commands: report, install, uninstall, hook-stop.
 |
-+-- api.ts              Anthropic API integration. countTokensViaApi()
-|                       calls POST /v1/messages/count_tokens.
-|
-+-- estimator.ts        Pure math. estimateCost() and estimateCostWithCache()
-|                       convert token counts + model pricing into dollar costs.
++-- estimator.ts        Pure math. estimateCostWithCache() converts token
+|                       counts + model pricing into dollar costs.
 |
 +-- models.ts           Model registry. Pricing data for Opus/Sonnet/Haiku
-|                       families. resolveModel() and inferModelFromId().
+|                       families. inferModelFromId() for hook lookups.
 |
 +-- format.ts           Terminal output. ANSI colors, box drawing,
 |                       table rendering, sparkline charts.
@@ -296,7 +201,7 @@ src/
 
 tests/
 +-- models.test.ts      Model resolution, aliases, family fallback
-+-- estimator.test.ts   Cost calculation math
++-- estimator.test.ts   Cache-aware cost calculation math
 +-- storage.test.ts     JSONL append/read round-trip
 ```
 
@@ -343,6 +248,20 @@ Each line is a JSON object (one per assistant turn):
     cache_write_cost  = cache_write_tokens / 1,000,000 * inputPerMTok * 1.25
     cache_read_cost   = cache_read_tokens  / 1,000,000 * inputPerMTok * 0.1
     total_cost        = input + output + cache_write + cache_read
+```
+
+## User Workflow
+
+```
+    1. INSTALL                 2. USE CLAUDE CODE              3. CHECK COST
+    (one-time setup)           (normal workflow)               (whenever)
+
+    $ claude-cost install      $ claude                        $ claude-cost report
+          |                        |                                 |
+          v                        v                                 v
+    Adds Stop hook to         Each turn fires              Reads session JSONL
+    ~/.claude/settings.json   hook-stop silently            and displays summary
+                              logging to JSONL
 ```
 
 ## Known Limitation

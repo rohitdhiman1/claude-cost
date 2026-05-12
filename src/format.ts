@@ -26,10 +26,6 @@ export function formatCost(cost: number): string {
   return colorCost(cost, raw);
 }
 
-export function formatCostPlain(cost: number): string {
-  return cost < 0.01 ? `$${cost.toFixed(4)}` : `$${cost.toFixed(2)}`;
-}
-
 export function header(text: string): string {
   return `${c.bold}${c.cyan}${text}${c.reset}`;
 }
