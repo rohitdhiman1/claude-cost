@@ -41,11 +41,13 @@ function readHookInput(): Promise<string> {
   });
 }
 
-function printEstimate(result: EstimateResult): void {
+function printEstimate(result: EstimateResult, outputSpecified: boolean): void {
   const methodLabel =
     result.method === "api"
       ? `${c.green}API (exact)${c.reset}`
       : `${c.yellow}Local (approximate)${c.reset}`;
+
+  const outputLabel = outputSpecified ? "(specified)" : "(estimated)";
 
   const lines = [
     `${header("Cost Estimate")}`,
@@ -53,7 +55,7 @@ function printEstimate(result: EstimateResult): void {
     `${dim("Model:")}         ${bold(result.model.name)} ${dim(`(${result.model.id})`)}`,
     `${dim("Method:")}        ${methodLabel}`,
     `${dim("Input tokens:")}  ${bold(result.inputTokens.toLocaleString())}`,
-    `${dim("Output tokens:")} ${bold(result.outputTokens.toLocaleString())} ${dim("(estimated)")}`,
+    `${dim("Output tokens:")} ${bold(result.outputTokens.toLocaleString())} ${dim(outputLabel)}`,
     "",
     `${dim("Input cost:")}    ${formatCost(result.inputCost)}`,
     `${dim("Output cost:")}   ${formatCost(result.outputCost)}`,
@@ -66,13 +68,14 @@ function printEstimate(result: EstimateResult): void {
   console.log("");
 }
 
-function printCompare(text: string): void {
+function printCompare(text: string, explicitOutput?: number): void {
   const tokens = estimateTokens(text);
-  const outputTokens = Math.ceil(tokens * 0.5);
+  const outputTokens = explicitOutput ?? Math.ceil(tokens * 0.5);
+  const outputLabel = explicitOutput ? "specified" : "estimated";
 
   console.log("");
   console.log(
-    `  ${header("Model Comparison")}  ${dim(`${tokens.toLocaleString()} input + ${outputTokens.toLocaleString()} output tokens (estimated)`)}`
+    `  ${header("Model Comparison")}  ${dim(`${tokens.toLocaleString()} input + ${outputTokens.toLocaleString()} output tokens (${outputLabel})`)}`
   );
   console.log("");
 
@@ -115,6 +118,7 @@ ${header("Usage:")}
 ${header("Options:")}
   ${bold("-m, --model")} <model>    Model to use ${dim("(default: sonnet)")}
                          Aliases: opus, sonnet, haiku
+  ${bold("-o, --output-tokens")} <n> Expected output tokens ${dim("(default: 50% of input)")}
   ${bold("--exact")}               Use Anthropic API for exact token count
   ${bold("--compare")}             Compare cost across all models
   ${bold("-h, --help")}            Show this help
@@ -139,6 +143,8 @@ function parseArgs(argv: string[]): {
     const arg = argv[i];
     if (arg === "--model" || arg === "-m") {
       flags.model = argv[++i] ?? "";
+    } else if (arg === "--output-tokens" || arg === "-o") {
+      flags.outputTokens = argv[++i] ?? "";
     } else if (arg === "--exact") {
       flags.exact = true;
     } else if (arg === "--compare") {
@@ -205,9 +211,21 @@ async function main(): Promise<void> {
       const text = await getText(args);
       const modelId = (flags.model as string) ?? DEFAULT_MODEL;
       const model = resolveModel(modelId);
+      const explicitOutput = flags.outputTokens
+        ? parseInt(flags.outputTokens as string, 10)
+        : undefined;
+
+      if (explicitOutput !== undefined && isNaN(explicitOutput)) {
+        console.error(
+          `${c.red}--output-tokens must be a number.${c.reset}`
+        );
+        process.exit(1);
+      }
+
+      const outputRatio = explicitOutput ? undefined : 0.5;
 
       if (flags.compare) {
-        printCompare(text);
+        printCompare(text, explicitOutput);
         return;
       }
 
@@ -219,13 +237,30 @@ async function main(): Promise<void> {
           );
           process.exit(1);
         }
-        const result = await estimateViaApi(text, model, apiKey);
-        printEstimate(result);
+        const result = await estimateViaApi(
+          text,
+          model,
+          apiKey,
+          outputRatio
+        );
+        if (explicitOutput !== undefined) {
+          result.outputTokens = explicitOutput;
+          const costs = estimateCost(result.inputTokens, explicitOutput, model);
+          result.outputCost = costs.outputCost;
+          result.totalCost = costs.totalCost;
+        }
+        printEstimate(result, explicitOutput !== undefined);
         return;
       }
 
-      const result = estimate(text, model);
-      printEstimate(result);
+      const result = estimate(text, model, outputRatio);
+      if (explicitOutput !== undefined) {
+        result.outputTokens = explicitOutput;
+        const costs = estimateCost(result.inputTokens, explicitOutput, model);
+        result.outputCost = costs.outputCost;
+        result.totalCost = costs.totalCost;
+      }
+      printEstimate(result, explicitOutput !== undefined);
       return;
     }
 
