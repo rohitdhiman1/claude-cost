@@ -6,6 +6,7 @@ import { appendTurn } from "../storage.js";
 interface HookInput {
   session_id: string;
   transcript_path: string;
+  cwd?: string;
 }
 
 interface TranscriptUsage {
@@ -71,6 +72,8 @@ export function handleStop(input: HookInput): void {
   const cacheWriteTokens = usage.cache_creation_input_tokens ?? 0;
   const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
 
+  const project = input.cwd ? input.cwd.split("/").pop() : undefined;
+
   const costs = estimateCostWithCache(
     inputTokens,
     outputTokens,
@@ -82,6 +85,7 @@ export function handleStop(input: HookInput): void {
   appendTurn({
     timestamp: new Date().toISOString(),
     sessionId: input.session_id,
+    project,
     inputTokens,
     outputTokens,
     cacheWriteTokens,
