@@ -3,7 +3,14 @@ const isColorSupported =
   process.env.NO_COLOR === undefined &&
   (process.stdout.isTTY ?? false);
 
+const is256Color =
+  isColorSupported &&
+  (process.env.TERM?.includes("256color") || process.env.COLORTERM === "truecolor" || process.env.TERM_PROGRAM === "iTerm.app" || process.env.TERM_PROGRAM === "Apple_Terminal");
+
 const esc = (code: string) => (isColorSupported ? `\x1b[${code}m` : "");
+const fg256 = (n: number) => (is256Color ? `\x1b[38;5;${n}m` : "");
+const rgb = (r: number, g: number, b: number) =>
+  isColorSupported ? `\x1b[38;2;${r};${g};${b}m` : "";
 
 export const c = {
   reset: esc("0"),
@@ -124,5 +131,88 @@ export function sparkline(values: number[]): string {
       return blocks[idx];
     })
     .join("");
+}
+
+const BAR_GRADIENT = [
+  [80, 200, 120],
+  [120, 220, 100],
+  [180, 220, 60],
+  [220, 200, 40],
+  [240, 160, 40],
+  [250, 100, 50],
+  [240, 60, 60],
+] as const;
+
+function barColor(ratio: number): string {
+  const idx = ratio * (BAR_GRADIENT.length - 1);
+  const lower = Math.floor(idx);
+  const upper = Math.min(lower + 1, BAR_GRADIENT.length - 1);
+  const t = idx - lower;
+  const r = Math.round(BAR_GRADIENT[lower][0] + t * (BAR_GRADIENT[upper][0] - BAR_GRADIENT[lower][0]));
+  const g = Math.round(BAR_GRADIENT[lower][1] + t * (BAR_GRADIENT[upper][1] - BAR_GRADIENT[lower][1]));
+  const b = Math.round(BAR_GRADIENT[lower][2] + t * (BAR_GRADIENT[upper][2] - BAR_GRADIENT[lower][2]));
+  return rgb(r, g, b);
+}
+
+export function costBar(cost: number, maxCost: number, width = 20): string {
+  if (!is256Color || maxCost === 0) return "";
+  const ratio = Math.min(cost / maxCost, 1);
+  const filled = Math.round(ratio * width);
+  const empty = width - filled;
+
+  let bar = "";
+  for (let i = 0; i < filled; i++) {
+    const segRatio = i / width;
+    bar += `${barColor(segRatio)}█`;
+  }
+  bar += `${c.dim}${"░".repeat(empty)}${c.reset}`;
+  return bar;
+}
+
+export function brandedHeader(_subtitle?: string, totalWidth?: number): string {
+  const accent = is256Color ? rgb(130, 160, 220) : c.cyan;
+  const money = is256Color ? rgb(100, 200, 130) : c.green;
+  const mutedText = is256Color ? rgb(140, 140, 160) : c.dim;
+
+  const innerW = totalWidth ? totalWidth - 2 : 48;
+
+  const topLabelPlain = " claude-cost v0.1.0 ";
+  const topLabel = ` ${c.bold}claude-cost${c.reset} ${mutedText}v0.1.0${c.reset} `;
+  const dashesLeft = 3;
+  const dashesRight = innerW - dashesLeft - topLabelPlain.length;
+  const top = `${dim(box.tl)}${dim(box.h.repeat(dashesLeft))}${topLabel}${dim(box.h.repeat(Math.max(0, dashesRight)))}${dim(box.tr)}`;
+  const bottom = `${dim(box.bl)}${dim(box.h.repeat(innerW))}${dim(box.br)}`;
+  const emptyLine = `${dim(box.v)}${" ".repeat(innerW)}${dim(box.v)}`;
+
+  const padLine = (content: string, plainLen: number) => {
+    const remaining = innerW - 4 - plainLen;
+    return `${dim(box.v)}  ${content}${" ".repeat(Math.max(0, remaining))}  ${dim(box.v)}`;
+  };
+
+  const nameContent = `${accent}◉${c.reset}  ${c.bold}claude-cost${c.reset}  ${c.green}$${c.reset}`;
+  const namePlain = "◉  claude-cost  $";
+  const tagline = "Know what your AI conversations cost.";
+  const subtitleContent = `${mutedText}${tagline}${c.reset}`;
+
+  const lines = [
+    top,
+    emptyLine,
+    padLine(nameContent, namePlain.length),
+    padLine(subtitleContent, tagline.length),
+    emptyLine,
+    bottom,
+  ];
+
+  return lines.join("\n");
+}
+
+export function measureTableWidth(tableStr: string): number {
+  const lines = tableStr.split("\n");
+  let maxPlain = 0;
+  for (const line of lines) {
+    const plain = line.replace(/\x1b\[[0-9;]*m/g, "");
+    if (plain.length > maxPlain) maxPlain = plain.length;
+  }
+  return maxPlain;
 }
 
