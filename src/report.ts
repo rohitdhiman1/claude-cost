@@ -13,6 +13,8 @@ import {
   drawBox,
   drawTable,
   sparkline,
+  brandedHeader,
+  measureTableWidth,
 } from "./format.js";
 
 function formatSummaryBox(summary: SessionSummary): string {
@@ -38,15 +40,23 @@ function formatSummaryBox(summary: SessionSummary): string {
   return drawBox(lines);
 }
 
+function displayModel(model?: string): string {
+  if (!model) return "?";
+  return model;
+}
+
 function formatSummaryRow(summary: SessionSummary): string[] {
   return [
-    dim(summary.sessionId.slice(0, 12)),
+    dim(summary.sessionId.slice(0, 8)),
+    summary.project ?? "-",
+    displayModel(summary.model),
     String(summary.turns),
     summary.totalInputTokens.toLocaleString(),
     summary.totalOutputTokens.toLocaleString(),
     formatCost(summary.totalCost),
   ];
 }
+
 
 export function reportSession(sessionId: string): string {
   const summary = getSessionSummary(sessionId);
@@ -64,8 +74,19 @@ export function reportAll(): string {
   const totalInput = summaries.reduce((s, r) => s + r.totalInputTokens, 0);
   const totalOutput = summaries.reduce((s, r) => s + r.totalOutputTokens, 0);
 
+  const rows = summaries.map(formatSummaryRow);
+  const table = drawTable(
+    ["Session", "Project", "Model", "Turns", "Input", "Output", "Cost"],
+    rows,
+    [3, 4, 5, 6]
+  );
+
+  const tableWidth = measureTableWidth(table);
+  const totalWidth = tableWidth + 2;
+  const banner = brandedHeader("All Time Cost Report", totalWidth);
+
   const overviewLines = [
-    header("Cost Report — All Time"),
+    header("Summary"),
     "",
     `${dim("Sessions:")}      ${bold(String(summaries.length))}`,
     `${dim("Total turns:")}   ${bold(String(totalTurns))}`,
@@ -79,38 +100,68 @@ export function reportAll(): string {
     overviewLines.push(`${dim("Trend:")}         ${sparkline(costs)}`);
   }
 
-  const rows = summaries.map(formatSummaryRow);
-  const table = drawTable(
-    ["Session", "Turns", "Input", "Output", "Cost"],
-    rows,
-    [1, 2, 3, 4]
-  );
-
   return (
     "\n" +
-    drawBox(overviewLines) +
+    banner +
+    "\n" +
+    drawBox(overviewLines, totalWidth - 4) +
     "\n\n  " +
     table.replace(/\n/g, "\n  ") +
     "\n"
   );
 }
 
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
 export function reportToday(): string {
-  const today = new Date().toISOString().slice(0, 10);
-  const summaries = getAllSummaries().filter((s) =>
-    s.startedAt.startsWith(today)
-  );
+  return reportSince(0, "today");
+}
+
+export function reportYesterday(): string {
+  return reportSince(1, "yesterday", 0);
+}
+
+export function reportDays(n: number): string {
+  return reportSince(n - 1, `past ${n} days`);
+}
+
+function reportSince(daysBack: number, label: string, daysUntil?: number): string {
+  const since = daysAgo(daysBack);
+  const until = daysUntil !== undefined ? daysAgo(daysUntil) : undefined;
+
+  const summaries = getAllSummaries().filter((s) => {
+    const date = s.endedAt.slice(0, 10);
+    if (date < since) return false;
+    if (until && date > until) return false;
+    return true;
+  });
 
   if (summaries.length === 0)
-    return `\n  ${dim(`No sessions found for today (${today}).`)}\n`;
+    return `\n  ${dim(`No sessions found for ${label}.`)}\n`;
 
   const totalCost = summaries.reduce((s, r) => s + r.totalCost, 0);
   const totalTurns = summaries.reduce((s, r) => s + r.turns, 0);
   const totalInput = summaries.reduce((s, r) => s + r.totalInputTokens, 0);
   const totalOutput = summaries.reduce((s, r) => s + r.totalOutputTokens, 0);
 
+  const rows = summaries.map(formatSummaryRow);
+  const table = drawTable(
+    ["Session", "Project", "Model", "Turns", "Input", "Output", "Cost"],
+    rows,
+    [3, 4, 5, 6]
+  );
+
+  const tableWidth = measureTableWidth(table);
+  const totalWidth = tableWidth + 2;
+  const dateRange = until ? since : `${since} → now`;
+  const banner = brandedHeader(`${label} (${dateRange})`, totalWidth);
+
   const overviewLines = [
-    header(`Cost Report — ${today}`),
+    header("Summary"),
     "",
     `${dim("Sessions:")}      ${bold(String(summaries.length))}`,
     `${dim("Total turns:")}   ${bold(String(totalTurns))}`,
@@ -119,16 +170,11 @@ export function reportToday(): string {
     `${dim("Total cost:")}    ${bold(formatCost(totalCost))}`,
   ];
 
-  const rows = summaries.map(formatSummaryRow);
-  const table = drawTable(
-    ["Session", "Turns", "Input", "Output", "Cost"],
-    rows,
-    [1, 2, 3, 4]
-  );
-
   return (
     "\n" +
-    drawBox(overviewLines) +
+    banner +
+    "\n" +
+    drawBox(overviewLines, totalWidth - 4) +
     "\n\n  " +
     table.replace(/\n/g, "\n  ") +
     "\n"
