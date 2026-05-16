@@ -1,7 +1,7 @@
-import { reportAll, reportToday, reportSession } from "./report.js";
+import { reportAll, reportToday, reportYesterday, reportDays, reportSession } from "./report.js";
 import { handleStop } from "./hooks/stop.js";
 import { install, uninstall } from "./installer.js";
-import { c, bold, dim, header } from "./format.js";
+import { c, bold, dim, header, brandedHeader } from "./format.js";
 
 function readHookInput(): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -14,13 +14,17 @@ function readHookInput(): Promise<string> {
 }
 
 function printUsage(): void {
-  const title = `${c.bold}${c.cyan}claude-cost${c.reset} ${dim("— Track Claude Code session costs")}`;
+  const banner = brandedHeader("Track Claude Code session costs");
   const help = `
-${title}
+${banner}
 
 ${header("Usage:")}
   ${bold("claude-cost report")}                  Show all session cost data
   ${bold("claude-cost report")} --today          Show today's cost data
+  ${bold("claude-cost report")} --yesterday      Show yesterday's cost data
+  ${bold("claude-cost report")} --week           Show past 7 days
+  ${bold("claude-cost report")} --month          Show past 30 days
+  ${bold("claude-cost report")} --days <n>       Show past n days
   ${bold("claude-cost report")} --session <id>   Show specific session data
   ${bold("claude-cost install")}                 Install Claude Code hook (silent cost logging)
   ${bold("claude-cost uninstall")}               Remove Claude Code hook
@@ -44,6 +48,14 @@ function parseArgs(argv: string[]): {
     const arg = argv[i];
     if (arg === "--today") {
       flags.today = true;
+    } else if (arg === "--yesterday") {
+      flags.yesterday = true;
+    } else if (arg === "--week") {
+      flags.week = true;
+    } else if (arg === "--month") {
+      flags.month = true;
+    } else if (arg === "--days") {
+      flags.days = argv[++i] ?? "";
     } else if (arg === "--session") {
       flags.session = argv[++i] ?? "";
     } else if (arg === "--help" || arg === "-h") {
@@ -84,6 +96,19 @@ async function main(): Promise<void> {
         console.log(reportSession(flags.session as string));
       } else if (flags.today) {
         console.log(reportToday());
+      } else if (flags.yesterday) {
+        console.log(reportYesterday());
+      } else if (flags.week) {
+        console.log(reportDays(7));
+      } else if (flags.month) {
+        console.log(reportDays(30));
+      } else if (flags.days) {
+        const n = parseInt(flags.days as string, 10);
+        if (isNaN(n) || n < 1) {
+          console.error(`${c.red}--days must be a positive number.${c.reset}`);
+          process.exit(1);
+        }
+        console.log(reportDays(n));
       } else {
         console.log(reportAll());
       }
