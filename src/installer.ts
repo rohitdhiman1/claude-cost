@@ -65,13 +65,19 @@ export function install(): string {
 
   const hookConfig = buildHookConfig();
 
+  for (const event of Object.keys(settings.hooks)) {
+    settings.hooks[event] = settings.hooks[event].filter(
+      (m) => !isClaudeCostHook(m)
+    );
+    if (settings.hooks[event].length === 0) {
+      delete settings.hooks[event];
+    }
+  }
+
   for (const [event, matchers] of Object.entries(hookConfig)) {
     if (!settings.hooks[event]) {
       settings.hooks[event] = [];
     }
-    settings.hooks[event] = settings.hooks[event].filter(
-      (m) => !isClaudeCostHook(m)
-    );
     settings.hooks[event].push(...matchers);
   }
 
