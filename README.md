@@ -1,14 +1,14 @@
 # claude-cost
 
-CLI tool and Claude Code hooks for estimating and tracking Claude API costs.
+CLI tool for tracking and reporting Claude Code session costs.
 
 ## Features
 
-- **Estimate tokens and cost** for any text or file before sending to Claude
-- **Compare pricing** across all Claude models (Opus, Sonnet, Haiku)
-- **Exact token counts** via the Anthropic Token Counting API
-- **Automatic cost tracking** per turn and per session via Claude Code hooks
-- **Cost reports** — daily, per-session, or all-time summaries
+- **Silent cost tracking** via Claude Code Stop hook — logs every turn automatically
+- **Cost reports** — today, yesterday, week, month, custom date ranges, or all-time
+- **Project detection** — intelligently extracts project names from Claude session data
+- **Model visibility** — shows exact model used per session
+- **Branded CLI output** — clean, elegant terminal formatting with aligned sections
 - Zero runtime dependencies
 
 ## Install
@@ -17,163 +17,102 @@ CLI tool and Claude Code hooks for estimating and tracking Claude API costs.
 npm install -g claude-cost
 ```
 
-Or run directly:
+## Quick Start
 
 ```bash
-npx claude-cost estimate "your prompt here"
+# Install the tracking hook (one-time)
+claude-cost install
+
+# Use Claude Code normally — costs are logged silently in the background
+
+# Check your spending
+claude-cost report --today
 ```
 
 ## Usage
 
-### Estimate cost
+### Reports
 
 ```bash
-# Estimate from text
-claude-cost estimate "Explain how neural networks work"
+# All-time summary
+claude-cost report
 
-# Estimate from a file
-claude-cost estimate prompt.txt
+# Today's sessions
+claude-cost report --today
 
-# Pipe from stdin
-cat prompt.txt | claude-cost estimate -
+# Yesterday's sessions
+claude-cost report --yesterday
 
-# Use a specific model (default: sonnet)
-claude-cost estimate -m opus "your prompt"
-claude-cost estimate -m haiku "your prompt"
+# Past 7 days
+claude-cost report --week
 
-# Exact token count via Anthropic API (requires ANTHROPIC_API_KEY)
-claude-cost estimate --exact "your prompt"
+# Past 30 days
+claude-cost report --month
 
-# Compare cost across all models
-claude-cost estimate --compare "your prompt"
+# Custom range (past N days)
+claude-cost report --days 14
+
+# Specific session
+claude-cost report --session <id>
 ```
 
 **Example output:**
 
 ```
-Model:         Sonnet 4.6 (claude-sonnet-4-6)
-Method:        Local (approximate)
-Input tokens:  21
-Output tokens: 11 (estimated)
+╭─── claude-cost v0.1.0 ──────────────────────────────────────────────╮
+│                                                                     │
+│  ◉  claude-cost  $                                                  │
+│  Know what your AI conversations cost.                              │
+│                                                                     │
+╰─────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────╮
+│ Summary                                                             │
+│                                                                     │
+│ Sessions:      3                                                    │
+│ Total turns:   42                                                   │
+│ Input tokens:  1,200                                                │
+│ Output tokens: 12,000                                               │
+│ Total cost:    $3.50                                                │
+╰─────────────────────────────────────────────────────────────────────╯
 
-Input cost:    $0.0001
-Output cost:   $0.0002
-Total cost:    $0.0002
+  Session   Project        Model            Turns  Input  Output   Cost
+  ─────────────────────────────────────────────────────────────────────
+  b26222fb  my-project     claude-opus-4-6     36     50   5,012  $2.18
+  a79db25a  claude-cost    claude-opus-4-6     25  1,145   8,308  $2.12
 ```
 
-**Compare output:**
-
-```
-Input tokens:  21 (estimated)
-Output tokens: 11 (estimated)
-
-Model                     Input     Output      Total
-────────────────────────────────────────────────────
-Opus 4.7                $0.0001    $0.0003    $0.0004
-Sonnet 4.6              $0.0001    $0.0002    $0.0002
-Haiku 4.5               $0.0000    $0.0001    $0.0001
-```
-
-### Cost reports
+### Hook Management
 
 ```bash
-# Show all tracked sessions
-claude-cost report
-
-# Show today's sessions only
-claude-cost report --today
-
-# Show a specific session
-claude-cost report --session <session-id>
-```
-
-### Claude Code hooks
-
-Hooks automatically track cost after every Claude Code turn and print a summary when a session ends.
-
-**Automatic setup:**
-
-```bash
-# Install hooks into ~/.claude/settings.json
+# Install Stop hook into ~/.claude/settings.json
 claude-cost install
 
-# Remove hooks
+# Remove hook
 claude-cost uninstall
 ```
 
-**Manual setup:**
+## How It Works
 
-Add the following to `~/.claude/settings.json` (user-level) or `.claude/settings.json` (project-level):
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-cost hook-stop",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-cost hook-session-end",
-            "timeout": 10
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Once installed, you'll see cost info after each turn:
-
-```
-[claude-cost] Turn cost: $0.0342
-```
-
-And a session summary when the session ends:
-
-```
-━━━ Session Cost Summary ━━━
-  Turns:         12
-  Input tokens:  45,230
-  Output tokens: 18,400
-  Cache write:   5,000
-  Cache read:    32,100
-  Total cost:    $0.28
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+1. `claude-cost install` registers a Stop hook in `~/.claude/settings.json`
+2. Every time Claude Code completes a turn, the hook fires silently
+3. The hook reads the transcript, extracts token usage, calculates cost, and appends to JSONL storage
+4. `claude-cost report` reads the stored data and displays formatted summaries
 
 ## Pricing
 
 Based on current Claude API pricing (as of May 2025):
 
-| Model | Input (per MTok) | Output (per MTok) |
-|-------|-----------------|-------------------|
-| Opus 4.7 | $5.00 | $25.00 |
-| Sonnet 4.6 | $3.00 | $15.00 |
-| Haiku 4.5 | $1.00 | $5.00 |
+| Model | Input (per MTok) | Output (per MTok) | Cache Write | Cache Read |
+|-------|-----------------|-------------------|-------------|------------|
+| Opus 4.5/4.6/4.7 | $5.00 | $25.00 | 1.25x input | 0.1x input |
+| Sonnet 4.5/4.6 | $3.00 | $15.00 | 1.25x input | 0.1x input |
+| Haiku 4.5 | $1.00 | $5.00 | 1.25x input | 0.1x input |
 
-## Data storage
+## Data Storage
 
-Session cost data is stored as JSONL files in `~/.claude-cost/sessions/`. Each session gets its own file.
+Session cost data is stored as JSONL files in `~/.claude-cost/sessions/`. Each session gets its own file with one JSON record per turn.
 
-## Environment variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Only for `--exact` | API key for exact token counting |
+**Important:** Cost tracking only records data going forward from when `claude-cost install` is run. It cannot retroactively capture past sessions — Claude Code does not expose historical usage data.
 
 ## Development
 
@@ -189,10 +128,9 @@ npm test
 
 # Type check
 npm run lint
-
-# Watch mode
-npm run dev
 ```
+
+After code changes, only `npm run build` is needed — the npm-linked binary points to `dist/cli.js` directly.
 
 ## License
 
