@@ -28,7 +28,8 @@ Claude Code fires "Stop" hook after each assistant turn
     +-------------------+       JSON via stdin
     |  Claude Code      | -------------------------+
     |                   |  { session_id,           |
-    |  (Stop event)     |    transcript_path }     |
+    |  (Stop event)     |    transcript_path,      |
+    |                   |    cwd }                 |
     +-------------------+                          |
                                                    v
                                           +-------------------+
@@ -80,7 +81,7 @@ Claude Code fires "Stop" hook after each assistant turn
 ## Data Flow: Report Command
 
 ```
-User runs:  claude-cost report [--today] [--session <id>]
+User runs:  claude-cost report [--today|--yesterday|--week|--month|--days N|--session <id>]
 
     +-------------------+
     |  CLI (cli.ts)     |
@@ -92,22 +93,28 @@ User runs:  claude-cost report [--today] [--session <id>]
     +-------------------+
     |  report.ts        |
     |                   |
-    |  reportAll()      |   or reportToday() or reportSession()
+    |  reportAll()      |   or reportToday() / reportYesterday()
+    |  reportDays(n)    |      reportDays(7) / reportSession()
     +--------+----------+
              |
              v
-    +-------------------+       reads
-    |  storage.ts       | -----------> ~/.claude-cost/sessions/*.jsonl
-    |                   |
-    |  getAllSummaries() |  Parses JSONL, aggregates per session:
-    |  getSessionTurns()|    turns, tokens, cost
-    +--------+----------+
+    +-------------------+       reads         +-------------------------+
+    |  storage.ts       | -------+----------> | ~/.claude-cost/sessions |
+    |                   |        |            |   *.jsonl               |
+    |  getAllSummaries() |        |            +-------------------------+
+    |  getSessionTurns()|        |
+    |                   |        | fallback    +-------------------------+
+    |  deriveProject    |        +----------> | ~/.claude/projects/     |
+    |  FromClaude()     |  decodes encoded   |   <encoded-path>/       |
+    +--------+----------+  dir to find       |     <session>.jsonl     |
+             |             project name       +-------------------------+
              |
              |  SessionSummary[]
              v
     +-------------------+
     |  format.ts        |
     |                   |
+    |  brandedHeader()  |  Branded banner with tagline
     |  drawBox()        |  Overview box with totals
     |  drawTable()      |  Session-by-session table
     |  sparkline()      |  Cost trend visualization
@@ -182,14 +189,15 @@ src/
 +-- models.ts           Model registry. Pricing data for Opus/Sonnet/Haiku
 |                       families. inferModelFromId() for hook lookups.
 |
-+-- format.ts           Terminal output. ANSI colors, box drawing,
-|                       table rendering, sparkline charts.
++-- format.ts           Terminal output. ANSI/RGB colors, branded header,
+|                       box drawing, table rendering, sparkline charts.
 |
 +-- storage.ts          JSONL persistence. Append turn records, read back
-|                       sessions, compute per-session summaries.
+|                       sessions, compute summaries. Derives project names
+|                       from ~/.claude/projects/ when not in turn data.
 |
 +-- report.ts           Report display. Reads storage, formats all-time /
-|                       today / single-session views with tables and trends.
+|                       today / yesterday / week / month / N-day / session views.
 |
 +-- installer.ts        Hook lifecycle. Reads/writes ~/.claude/settings.json
 |                       to register or remove the Stop hook.
@@ -217,6 +225,7 @@ Each line is a JSON object (one per assistant turn):
     {
       "timestamp":        "2025-05-12T10:00:00.000Z",
       "sessionId":        "abc-123-def",
+      "project":          "my-project",
       "inputTokens":      12500,
       "outputTokens":     3200,
       "cacheWriteTokens": 1000,
@@ -264,7 +273,7 @@ Each line is a JSON object (one per assistant turn):
                               logging to JSONL
 ```
 
-## Known Limitation
+## Known Limitations
 
 ```
     +-------------------+                +-------------------+
@@ -278,3 +287,8 @@ Each line is a JSON object (one per assistant turn):
     Hooks can silently LOG data but cannot DISPLAY in the Claude Code UI.
     Cost visibility is pull-based only: user runs "claude-cost report".
 ```
+
+**No retroactive data:** Cost tracking only records data going forward from when
+`claude-cost install` is run. It cannot capture historical sessions — Claude Code
+does not expose past usage data. If you install today, only sessions from today
+onward will appear in reports.
