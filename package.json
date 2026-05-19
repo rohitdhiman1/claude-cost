@@ -1,5 +1,5 @@
 {
-  "name": "claude-cost",
+  "name": "claude-cost-tracker",
   "version": "0.1.0",
   "description": "Track and report Claude Code session costs via silent hooks",
   "type": "module",
