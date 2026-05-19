@@ -15,7 +15,7 @@ Zero config. Zero noise. Just data when you want it.
 
 <br/>
 
-<img src="assets/demo.svg" alt="claude-cost demo" width="700"/>
+<img src="assets/demo.png" alt="claude-cost demo" width="700"/>
 
 </div>
 
