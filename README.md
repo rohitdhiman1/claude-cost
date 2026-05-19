@@ -4,7 +4,7 @@
 
 **Know what your AI conversations cost.**
 
-[![npm version](https://img.shields.io/npm/v/claude-cost?style=flat-square&color=cb3837)](https://www.npmjs.com/package/claude-cost)
+[![npm version](https://img.shields.io/npm/v/claude-cost-tracker?style=flat-square&color=cb3837)](https://www.npmjs.com/package/claude-cost-tracker)
 [![license](https://img.shields.io/github/license/rohitdhiman1/claude-cost?style=flat-square&color=blue)](https://github.com/rohitdhiman1/claude-cost/blob/main/LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/rohitdhiman1/claude-cost?style=flat-square&color=f5c542)](https://github.com/rohitdhiman1/claude-cost)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet?style=flat-square)](https://claude.ai/code)
@@ -33,7 +33,7 @@ Zero config. Zero noise. Just data when you want it.
 ## Install
 
 ```bash
-npm install -g claude-cost
+npm install -g claude-cost-tracker
 ```
 
 ## Quick Start
