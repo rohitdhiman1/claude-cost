@@ -151,3 +151,46 @@ export function getAllSummaries(): SessionSummary[] {
     .filter((s): s is SessionSummary => s !== null)
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
+
+function summarizeTurns(sessionId: string, turns: TurnRecord[]): SessionSummary | null {
+  if (turns.length === 0) return null;
+  const project =
+    turns.find((t) => t.project)?.project ?? deriveProjectFromClaude(sessionId);
+  const model = turns[turns.length - 1].model;
+  return {
+    sessionId,
+    project,
+    model,
+    startedAt: turns[0].timestamp,
+    endedAt: turns[turns.length - 1].timestamp,
+    turns: turns.length,
+    totalInputTokens: turns.reduce((s, t) => s + t.inputTokens, 0),
+    totalOutputTokens: turns.reduce((s, t) => s + t.outputTokens, 0),
+    totalCacheWriteTokens: turns.reduce((s, t) => s + t.cacheWriteTokens, 0),
+    totalCacheReadTokens: turns.reduce((s, t) => s + t.cacheReadTokens, 0),
+    totalCost: turns.reduce((s, t) => s + t.totalCost, 0),
+  };
+}
+
+function toLocalDate(isoTimestamp: string): string {
+  const d = new Date(isoTimestamp);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function getSummariesForDateRange(since: string, until?: string): SessionSummary[] {
+  return listSessions()
+    .map((id) => {
+      const turns = getSessionTurns(id).filter((t) => {
+        const date = toLocalDate(t.timestamp);
+        if (date < since) return false;
+        if (until && date >= until) return false;
+        return true;
+      });
+      return summarizeTurns(id, turns);
+    })
+    .filter((s): s is SessionSummary => s !== null)
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+}

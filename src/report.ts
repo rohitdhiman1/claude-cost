@@ -2,6 +2,7 @@ import {
   getAllSummaries,
   getSessionSummary,
   getSessionTurns,
+  getSummariesForDateRange,
   type SessionSummary,
 } from "./storage.js";
 import {
@@ -114,7 +115,10 @@ export function reportAll(): string {
 function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export function reportToday(): string {
@@ -133,12 +137,7 @@ function reportSince(daysBack: number, label: string, daysUntil?: number): strin
   const since = daysAgo(daysBack);
   const until = daysUntil !== undefined ? daysAgo(daysUntil) : undefined;
 
-  const summaries = getAllSummaries().filter((s) => {
-    const date = s.endedAt.slice(0, 10);
-    if (date < since) return false;
-    if (until && date >= until) return false;
-    return true;
-  });
+  const summaries = getSummariesForDateRange(since, until);
 
   if (summaries.length === 0)
     return `\n  ${dim(`No sessions found for ${label}.`)}\n`;
