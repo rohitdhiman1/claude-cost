@@ -13,14 +13,9 @@
 Track and report Claude Code session costs silently via hooks.
 Zero config. Zero noise. Just data when you want it.
 
-```
-╭─── claude-cost v0.1.0 ──────────────────────────────────────────────╮
-│                                                                     │
-│  ◉  claude-cost  $                                                  │
-│  Know what your AI conversations cost.                              │
-│                                                                     │
-╰─────────────────────────────────────────────────────────────────────╯
-```
+<br/>
+
+<img src="assets/demo.svg" alt="claude-cost demo" width="700"/>
 
 </div>
 
