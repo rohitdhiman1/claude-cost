@@ -136,7 +136,7 @@ function reportSince(daysBack: number, label: string, daysUntil?: number): strin
   const summaries = getAllSummaries().filter((s) => {
     const date = s.endedAt.slice(0, 10);
     if (date < since) return false;
-    if (until && date > until) return false;
+    if (until && date >= until) return false;
     return true;
   });
 
