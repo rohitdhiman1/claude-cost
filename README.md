@@ -1,6 +1,30 @@
+<div align="center">
+
 # claude-cost
 
-CLI tool for tracking and reporting Claude Code session costs.
+**Know what your AI conversations cost.**
+
+[![npm version](https://img.shields.io/npm/v/claude-cost?style=flat-square&color=cb3837)](https://www.npmjs.com/package/claude-cost)
+[![license](https://img.shields.io/github/license/rohitdhiman1/claude-cost?style=flat-square&color=blue)](https://github.com/rohitdhiman1/claude-cost/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/rohitdhiman1/claude-cost?style=flat-square&color=f5c542)](https://github.com/rohitdhiman1/claude-cost)
+[![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet?style=flat-square)](https://claude.ai/code)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](https://github.com/rohitdhiman1/claude-cost/pulls)
+
+Track and report Claude Code session costs silently via hooks.
+Zero config. Zero noise. Just data when you want it.
+
+```
+╭─── claude-cost v0.1.0 ──────────────────────────────────────────────╮
+│                                                                     │
+│  ◉  claude-cost  $                                                  │
+│  Know what your AI conversations cost.                              │
+│                                                                     │
+╰─────────────────────────────────────────────────────────────────────╯
+```
+
+</div>
+
+---
 
 ## Features
 
